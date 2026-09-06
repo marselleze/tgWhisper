@@ -87,13 +87,15 @@ an environment named `production`. Add these environment secrets:
 | Secret | Value |
 |---|---|
 | `VPS_HOST` | VPS IP address or DNS name |
-| `VPS_SSH_PRIVATE_KEY` | Full contents of the private `tgwhisper_deploy` key |
+| `VPS_SSH_PRIVATE_KEY_B64` | Base64-encoded bytes of the private `tgwhisper_deploy` key |
 | `VPS_KNOWN_HOSTS` | Verified SSH host-key entry for the VPS |
 
-Read the private key in PowerShell for copying into GitHub:
+Encode the private key as one Base64 line in PowerShell for copying into GitHub:
 
 ```powershell
-Get-Content -Raw "$env:USERPROFILE\.ssh\tgwhisper_deploy"
+[Convert]::ToBase64String(
+    [IO.File]::ReadAllBytes("$env:USERPROFILE\.ssh\tgwhisper_deploy")
+)
 ```
 
 Obtain the server's Ed25519 host public key from the VPS console, where the host
