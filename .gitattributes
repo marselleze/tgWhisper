@@ -1,0 +1,4 @@
+*.yml text eol=lf
+*.service text eol=lf
+*.sudoers text eol=lf
+deploy/deploy-tgwhisper text eol=lf

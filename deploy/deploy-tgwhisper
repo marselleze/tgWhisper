@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+readonly APP_ROOT="/opt/tgwhisper"
+readonly RELEASES_DIR="${APP_ROOT}/releases"
+readonly CURRENT_LINK="${APP_ROOT}/current"
+readonly NEXT_LINK="${APP_ROOT}/.current-next"
+readonly INCOMING_DIR="/var/lib/tgwhisper-deploy/incoming"
+readonly SERVICE="tgwhisper.service"
+
+mapfile -t wheels < <(
+  find "${INCOMING_DIR}" -maxdepth 1 -type f -name 'tgwhisper-*.whl' -print
+)
+
+if [[ ${#wheels[@]} -ne 1 ]]; then
+  echo "Expected exactly one TgWhisper wheel in ${INCOMING_DIR}; found ${#wheels[@]}" >&2
+  exit 1
+fi
+
+wheel="${wheels[0]}"
+wheel_hash="$(sha256sum "${wheel}" | cut -d ' ' -f 1)"
+release_id="$(date -u +%Y%m%dT%H%M%SZ)-${wheel_hash:0:12}"
+release_dir="${RELEASES_DIR}/${release_id}"
+previous_release="$(readlink -f "${CURRENT_LINK}" 2>/dev/null || true)"
+
+cleanup() {
+  rm -f -- "${NEXT_LINK}"
+}
+trap cleanup EXIT
+
+install -d -o root -g root -m 755 "${RELEASES_DIR}"
+install -d -o root -g root -m 755 "${release_dir}"
+
+python3 -m venv "${release_dir}/.venv"
+"${release_dir}/.venv/bin/python" -m pip install \
+  --disable-pip-version-check \
+  "${wheel}"
+
+ln -s "${release_dir}" "${NEXT_LINK}"
+mv -Tf "${NEXT_LINK}" "${CURRENT_LINK}"
+
+systemctl restart "${SERVICE}"
+sleep 10
+
+if systemctl is-active --quiet "${SERVICE}"; then
+  rm -f -- "${wheel}"
+  mapfile -t releases < <(
+    find "${RELEASES_DIR}" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort -r
+  )
+  for old_release in "${releases[@]:5}"; do
+    old_path="${RELEASES_DIR}/${old_release}"
+    if [[ "${old_path}" == "${RELEASES_DIR}/"* ]]; then
+      rm -rf -- "${old_path}"
+    fi
+  done
+  echo "Deployed ${release_id}"
+  exit 0
+fi
+
+echo "The new release failed its health check; rolling back" >&2
+journalctl -u "${SERVICE}" -n 30 --no-pager >&2 || true
+
+if [[ -n "${previous_release}" && -d "${previous_release}" ]]; then
+  ln -s "${previous_release}" "${NEXT_LINK}"
+  mv -Tf "${NEXT_LINK}" "${CURRENT_LINK}"
+  systemctl restart "${SERVICE}"
+  echo "Restored ${previous_release}" >&2
+else
+  systemctl stop "${SERVICE}" || true
+  echo "No previous release was available" >&2
+fi
+
+exit 1

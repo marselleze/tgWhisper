@@ -53,3 +53,6 @@ python scripts/smoke_telegram.py
 
 Product behavior is specified in [docs/UX_SPEC.md](docs/UX_SPEC.md) and the model
 contract in [docs/AI_CONTRACT.md](docs/AI_CONTRACT.md).
+
+VPS deployment and GitHub Actions setup are documented in
+[docs/CI_CD.md](docs/CI_CD.md).
