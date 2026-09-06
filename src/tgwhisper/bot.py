@@ -9,7 +9,7 @@ from aiogram.filters import Command
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from .ai import OpenAIAdapter
-from .presentation import render_digest, render_preview
+from .presentation import format_due_at, render_digest, render_preview
 from .repository import Repository
 from .schemas import Operation, OperationKind
 from .service import CaptureService
@@ -78,7 +78,11 @@ async def show_items(message: Message, capture_service: CaptureService) -> None:
     items = capture_service.repository.active_items(message.from_user.id)
     if message.text and message.text.startswith("/inbox"):
         items = [item for item in items if item.due_at is None]
-    text = "\n".join(f"#{item.id} · {item.title} · {item.due_at or 'без срока'}" for item in items)
+    text = "\n".join(
+        f"#{item.id} · {item.title} · "
+        f"{format_due_at(item.due_at) if item.due_at else 'без срока'}"
+        for item in items
+    )
     await message.answer(text or "Список пуст.")
 
 

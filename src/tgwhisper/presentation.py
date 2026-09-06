@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from datetime import date, datetime
 
 from .models import Item, ItemType
 from .schemas import Extraction, OperationKind
@@ -11,6 +12,15 @@ ICONS = {
 }
 
 
+def format_due_at(value: str | None) -> str:
+    """Format a stored ISO due date for user-facing Telegram messages."""
+    if value is None:
+        return "не указан"
+    if "T" not in value:
+        return date.fromisoformat(value).strftime("%d.%m.%Y")
+    return datetime.fromisoformat(value).strftime("%d.%m.%Y в %H:%M")
+
+
 def render_preview(extraction: Extraction) -> str:
     lines = [f"Подтвердить {len(extraction.operations)} пункт(а)?", ""]
     for operation in extraction.operations:
@@ -19,14 +29,14 @@ def render_preview(extraction: Extraction) -> str:
             assert item is not None
             lines.extend([
                 f"{ICONS[item.type]} {item.title}",
-                f"Срок: {item.due_at or 'не указан'}", "",
+                f"Срок: {format_due_at(item.due_at)}", "",
             ])
         elif operation.kind == OperationKind.COMPLETE:
             lines.extend([f"✓ Завершить пункт #{operation.target_item_id}", ""])
         elif operation.kind == OperationKind.RESCHEDULE:
             lines.extend([
                 f"⏳ Перенести пункт #{operation.target_item_id}",
-                f"Новый срок: {operation.due_at}", "",
+                f"Новый срок: {format_due_at(operation.due_at)}", "",
             ])
         else:
             lines.extend([f"Отменить пункт #{operation.target_item_id}", ""])
@@ -50,4 +60,3 @@ def render_digest(items: list[Item]) -> str:
             lines.extend(f"• {item.title}" for item in groups[item_type])
             lines.append("")
     return "\n".join(lines).rstrip()
-
